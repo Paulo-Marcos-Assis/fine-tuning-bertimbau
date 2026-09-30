@@ -1,5 +1,7 @@
 # Auditoria Anti-DataLeakage — `finetuning/sets` (padronizado + dedup final)
 
+> **Nota:** as seções 1–6 referem-se ao teste original (11453 linhas). O filtro de quase-duplicatas aplicado depois (teste com 11374 linhas) está na **seção 7**.
+
 **Data:** 2026-09-23  
 **Base final:** `/home/paulo/CascadeProjects/Applied_ML/NEW_training/finetuning/sets/` — `train_bert.csv` (36650), `dev_bert.csv` (9162), `test_bert.csv` (11453) — total **57265** linhas  
 **Padronização:** header `url,processed_text,label,portal` utf-8 `label int64` em todos. `test_bert.csv` copiado e reescrito para mesma ordem/colunas. `md5` final: `train f04fd268...`, `dev 84a77c34...`, `test 72967052...`  
@@ -74,13 +76,13 @@ Total 57265 = 36650+9162+11453
 * **O que ainda pode vazar (checagem_leakage.py, 57265 linhas):**
   * **Canônico agressivo** (sem `www`, barra, query, `-2`): 29 grupos, **15 entre splits** (8 test+train, 7 dev+train) — séries `parte-N/ep-N`, `lotofacil`, `lua`, `cinema`. Ver `urls_canonicas_agressiva.csv`.
   * **TF-IDF cosseno (vizinho mais próximo):** dev→train ≥0.8: 173 (2 pos), test→train+dev ≥0.8: 240 (6 pos, 2 rótulos diferentes, 1 portal diferente), ≥0.90: 63/79. Mediana pos 0.31-0.33 vs não-relacionados 0.1-0.2. Top são templates `parte-1/2`. Quase-duplicatas de mesmo fato em portais diferentes apareceriam com `portais_diferentes` alto — aqui 0-1, mas exige leitura manual de `quase_duplicatas_*.csv`.
-  * **Portal (atalho):** 2 maiores portais têm 0.44-0.90% fraude, mas `iclnoticias/g1 100%`; 2.1% das linhas fora top2 concentram 48% dos positivos. Baseline só-portal: **F1 0.586 AP 0.462** (vs aleatório 0.015). Se BERT ≈ isso, usa fonte.
+  * **Portal (atalho):** 2 maiores portais têm 0.44-0.90% fraude, mas `iclnoticias/g1 100%`; 2.1% das linhas fora top2 concentram 48% dos positivos.
   * **Truncamento 512:** 33.6% cortados geral, **~73% dos positivos vs ~33% dos negativos** (mediana pos ~730 tokens vs neg ~381). Medida real com `bert-base-portuguese-cased` em `truncamento_por_classe.csv`. Se sinal de fraude está no fim, modelo não vê.
 
 ## 5. Recomendação pós-dedup
 
 * Usar splits finais `36650/9162/11453` com rótulo **"sem duplicatas exatas"** no texto da pesquisa.
-* Não afirmar "métricas não infladas" — reportar como limitação os 15 grupos canônicos, 173/240 pares ≥0.8 e baseline de portal.
+* Não afirmar "métricas não infladas" — reportar como limitação os 15 grupos canônicos, 173/240 pares ≥0.8.
 * Manter pipeline de dedup global por `norm_hash` + rodar `checagem_leakage.py` a cada novo split; para mitigar portal, avaliar mascarar portal ou estratificar por portal; para truncamento, considerar `longformer`/`hierarchical` ou `max_length>512`.
 
 ## 6. Padronização confirmada (final)
@@ -97,3 +99,15 @@ nulos: 0 | dup_url: 0 | dup_rows: 0 | dup_text_norm: 0
 * Removidas **79** linhas de `test_bert.csv` (0,7%), das quais 1 positiva: **11453 → 11374** (11277→11199 negativos, 176→175 positivos). Train e dev não foram alterados. Novo md5 do teste: `86029ea0...`.
 * Script: `bertimbau_2/filtra_quase_duplicatas.py` (lê `saida_checagem/quase_duplicatas_test.csv`, gerado antes do filtro). Os números das seções 1–6 referem-se ao teste original.
 * Limitação: pares com similaridade entre 0,8 e 0,9 (161 no teste) permanecem; o corte de 0,9 é arbitrário.
+
+## 8. Limpeza do rodapé do ICL Notícias (aplicada)
+
+* Regex em `bertimbau_2/limpa_assinatura_icl.py` remove `Redação ICL Economia… Com informações da/do …` do fim do texto, em todos os portais. **38 textos** alterados (train 26, dev 5, test 7), todos do `iclnoticias.com.br`; linhas e rótulos inalterados.
+* Não trata menções a ICL no corpo, byline nem créditos de sindicação. Continuam valendo as limitações da seção 4 (atalho de portal, truncamento, quase-duplicatas).
+* md5: `train 81671d60...`, `dev e0ba26a2...`, `test 98e9dc2f...`.
+
+## 9. Desenho do teste de viés de domínio: portais do experimento
+
+* Treino só com `ndmais` (maior número de positivos: 410 de 878) e teste em outros portais, como no experimento de referência. Plano em `PLANO_VIES_DOMINIO.md`.
+* `iclnoticias.com.br` (261 positivos, **0 negativos**) **não é usado no treino/dev** desse experimento (como portal de treino viraria atalho perfeito para "fraude"), mas **entra no conjunto de exposição** com teto por portal (~11 positivos). Continua no dataset e no treino principal.
+* Treino só no `ndmais` em 3 razões de classe (natural 1:106, 1:64 e 1:10, subamostrando negativos; dev/teste sempre naturais); a melhor razão é escolhida no dev `ndmais` e só esse modelo é exposto a um conjunto único dos portais que não são o `ndmais` (positivos estratificados por portal, negativos sorteados até a razão vencedora: 106–174 positivos, até ~11,3 mil negativos). Só métricas agregadas. Similaridade máxima do pool com o treino `ndmais` = 0,65 (nada ≥ 0,9). Detalhes em `PLANO_VIES_DOMINIO.md` (E3).

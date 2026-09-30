@@ -9,8 +9,7 @@ label, portal) e faz:
   1. URLs canônicas: pega variações de barra final, query string (?utm_...),
      "www." e sufixo "-2" que escapam da interseção exata de URL.
   2. Portais x classe: taxa de fraude por portal, concentração dos positivos,
-     portais que só aparecem em alguns splits, páginas que não são notícia
-     e um baseline que usa SÓ o portal (detecta atalho de fonte).
+     portais que só aparecem em alguns splits e páginas que não são notícia.
   3. Textos: comprimento por classe e os textos mais curtos de cada split.
   3b. Truncamento: mede quantos textos são cortados em 512 tokens
       (bert-base-portuguese-cased) por split e por classe.
@@ -32,9 +31,6 @@ from urllib.parse import urlsplit
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, precision_recall_curve, precision_recall_fscore_support
-from sklearn.preprocessing import OneHotEncoder
 
 SPLITS = ["train", "dev", "test"]
 pd.set_option("display.width", 220)
@@ -106,31 +102,6 @@ def checa_urls(all_df, out):
 
 
 # ---------------------------------------------------------------- 2. Portais
-def melhor_limiar(y, p):
-    prec, rec, thr = precision_recall_curve(y, p)
-    f1 = 2 * prec * rec / np.clip(prec + rec, 1e-12, None)
-    return float(thr[int(np.nanargmax(f1[:-1]))])
-
-
-def baseline_portal(dfs):
-    enc = OneHotEncoder(handle_unknown="ignore")
-    Xtr = enc.fit_transform(dfs["train"][["portal"]])
-    clf = LogisticRegression(C=1.0, class_weight="balanced", max_iter=1000)
-    clf.fit(Xtr, dfs["train"]["label"])
-    p_dev = clf.predict_proba(enc.transform(dfs["dev"][["portal"]]))[:, 1]
-    p_test = clf.predict_proba(enc.transform(dfs["test"][["portal"]]))[:, 1]
-    thr = melhor_limiar(dfs["dev"]["label"], p_dev)  # limiar escolhido no dev, nunca no teste
-    y = dfs["test"]["label"]
-    pred = (p_test >= thr).astype(int)
-    prec, rec, f1, _ = precision_recall_fscore_support(y, pred, average="binary", zero_division=0)
-    ap = average_precision_score(y, p_test)
-    print("\nBaseline que usa SÓ o portal (regressão logística, limiar escolhido no dev):")
-    print(f"  teste -> precision={prec:.3f}  recall={rec:.3f}  F1={f1:.3f}  "
-          f"AP={ap:.3f}  (prevalência = AP de um classificador aleatório = {y.mean():.3f})")
-    print("  Leitura: quanto mais próximo esse F1/AP estiver do obtido pelo BERT, mais suspeito\n"
-          "  é que o modelo esteja usando a fonte (portal) e não o conteúdo.")
-
-
 def eh_pagina_suspeita(url):
     p = urlsplit(url.strip())
     host = p.netloc.lower()
@@ -138,7 +109,7 @@ def eh_pagina_suspeita(url):
             or p.path in ("", "/"))
 
 
-def checa_portais(all_df, dfs, out):
+def checa_portais(all_df, out):
     secao("2. Portais x classe")
     n = pd.crosstab(all_df["portal"], all_df["split"]).reindex(columns=SPLITS, fill_value=0)
     pos = (all_df.pivot_table(index="portal", columns="split", values="label", aggfunc="sum", fill_value=0)
@@ -174,7 +145,6 @@ def checa_portais(all_df, dfs, out):
         print(pd.crosstab(susp["portal"], [susp["split"], susp["label"]]).to_string())
         susp[["split", "label", "portal", "url"]].to_csv(Path(out) / "paginas_suspeitas.csv",
                                                           index=False, encoding="utf-8")
-    baseline_portal(dfs)
 
 
 # ---------------------------------------------------------------- 3b. Truncamento
@@ -330,7 +300,7 @@ def main():
     print({s: len(dfs[s]) for s in SPLITS})
 
     checa_urls(all_df, out)
-    checa_portais(all_df, dfs, out)
+    checa_portais(all_df, out)
     checa_textos(all_df, out)
     checa_truncamento(all_df, out)
     checa_quase_duplicatas(all_df, out, args.thr, args.min_sim, args.chunk)

@@ -1,5 +1,7 @@
 # Análise Exploratória — `finetuning/sets` (final padronizado + dedup)
 
+> **Nota:** as seções 1–10 descrevem os dados na etapa 2 (pós-dedup exato, teste com 11453 linhas). O estado atual (teste filtrado, 11374 linhas) e a evolução por etapa estão na **seção 11**.
+
 **Data:** 2026-09-23  
 **Base final:** `/home/paulo/CascadeProjects/Applied_ML/NEW_training/finetuning/sets/` — 3 arquivos BERT padronizados (`train_bert.csv`, `dev_bert.csv`, `test_bert.csv`) — origem `FOR_TRAINING/` + `FOR_TEST/Pre_processed_for_Embeddings/test_bert.csv` com dedup global.
 
@@ -80,7 +82,7 @@ Critério: `hash = md5(re.sub(r'\s+',' ',processed_text).strip())`, manter prime
 
 * **URLs canônicas:** básica (barra/query/www) 0 cross; agressiva (+`-2`) **15 grupos entre splits** (8 test+train, 7 dev+train) — majoritariamente séries `parte-1/parte-2`, `ep-12/13`, `lotofacil 3555/3566`, `lua`, `cinema`. Indica molde repetido entre splits, revisar `saida_checagem/urls_canonicas_agressiva.csv`.
 * **Quase-duplicatas TF-IDF (vizinho mais próximo):** dev→train ≥0.8: **173** (2 pos), ≥0.9: 63, ≥0.95: 18; test→train+dev ≥0.8: **240** (6 pos, 2 rótulos diferentes, 1 portal diferente). Top `1.0` são `parte-1/parte-2`; sim 0.95+ exige revisão manual — mediana pos 0.31/0.33, não-relacionados ~0.1-0.2, 5% palavras trocadas já derruba para ~0.80-0.86. Ver `quase_duplicatas_*.csv`.
-* **Portal × fraude (atalho de fonte):** `ndmais 0.90%` (45446) e `nsctotal 0.44%` vs `iclnoticias 100%` (261), `g1 100%` (62). Fora dos 2 maiores: **2.1% das linhas concentram 48% dos positivos**. Baseline só-portal (logreg, limiar no dev): **test F1 0.586 AP 0.462** vs prevalência 0.015 — se BERT se aproximar disso, está usando fonte, não conteúdo.
+* **Portal × fraude (atalho de fonte):** `ndmais 0.90%` (45446) e `nsctotal 0.44%` vs `iclnoticias 100%` (261), `g1 100%` (62). Fora dos 2 maiores: **2.1% das linhas concentram 48% dos positivos**.
 * **Truncamento 512 tokens (`bert-base-portuguese-cased`):** mediana 381-385 tokens, q75 ~600-610. **Cortados: 33.6% geral, mas 70.6% train-pos / 73.0% dev-pos / 74.4% test-pos vs ~32-33% neg.** `tuning.ipynb:283` `max_length=512` esconde fim da matéria. Ver `saida_checagem/truncamento_por_classe.csv`.
 
 Para texto da pesquisa: escrever "sem duplicatas exatas (exata/normalizada 0)" e reportar riscos acima como limitações.
@@ -123,3 +125,19 @@ Na etapa 3 saíram 79 linhas do teste (78 normais, 1 fraude): a estratificação
 | test | 71 | 1017 | 1650 | 2100 | 2616 | 40795 |
 
 Truncamento >512 tokens no teste: normal 33.0% (mediana 380 tokens), fraude 74.3% (mediana 712).
+
+## 12. Etapa 4: limpeza do rodapé de assinatura do ICL Notícias
+
+Continuação da seção 11 (as etapas 1–3 acima não mudam).
+
+| Etapa | Critério | train | dev | test | total |
+|---|---|---|---|---|---|
+| 3. Filtro de quase-duplicatas | (seção 11) | 36650 | 9162 | 11374 | 57186 |
+| 4. Limpeza do rodapé ICL | regex em `processed_text`, todos os portais | 36650 | 9162 | 11374 | 57186 |
+
+* **Padrão removido:** `Redação ICL Economia… Com informações da/do …` no fim do texto (ex.: `…Redação ICL EconomiaCom informações da Folha de S.Paulo`); a seção "Relacionados" posterior, quando existe, é mantida. Script: `bertimbau_2/limpa_assinatura_icl.py`.
+* **Textos alterados: 38** (train 26, dev 5, test 7), todos do `iclnoticias.com.br` (nenhum outro portal tem o padrão); removidos ~40–90 caracteres por texto. Linhas, rótulos, URLs e proporções **inalterados** (fraude 1.533% / 1.539% / 1.539%).
+* **Não tratado (decisão do usuário):** menções a ICL no corpo ("ICL Notícias teve acesso…", 32 textos), byline `Por <Nome> —` no início e créditos de sindicação. ~70% dos textos do `iclnoticias` não têm assinatura explícita.
+* **md5 pós-limpeza:** `train 81671d60...`, `dev e0ba26a2...`, `test 98e9dc2f...` (as versões anteriores estão no histórico do git).
+* `saida_checagem/` foi gerada antes desta etapa (mesmos textos, menos o rodapé).
+* **Uso no teste de viés por portal:** o treino desse experimento usa só o `ndmais`; o `iclnoticias` (261 linhas, 100% fraude, sem negativos) não treina e entra na exposição com teto por portal (ver `PLANO_VIES_DOMINIO.md`, seções 1.5 e E3).

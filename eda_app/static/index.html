@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EDA — Fraude em notícias</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mut:#637083;--line:#e3e7ec;--c0:#3b82c4;--c1:#e07a1f;--acc:#1c2430}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12161c;--card:#1a2029;--ink:#e8ecf1;--mut:#9aa7b7;--line:#2a3340;--c0:#5ea3e6;--c1:#f0954a;--acc:#e8ecf1}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+header h1{font-size:17px;margin:0;flex:1 1 auto}
+nav a{color:var(--mut);text-decoration:none;margin-right:14px;font-size:13px}
+nav a:hover{color:var(--ink)}
+select,input,button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+main{max-width:1180px;margin:0 auto;padding:16px}
+section{margin:0 0 28px}
+h2{font-size:18px;margin:0 0 4px}
+p.sub{color:var(--mut);margin:0 0 12px;font-size:13.5px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card h3{font-size:14px;margin:0 0 8px}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.kpi b{display:block;font-size:22px}.kpi span{color:var(--mut);font-size:12.5px}
+.chart{position:relative;height:300px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mut);font-weight:600;cursor:pointer;white-space:nowrap}
+.note{font-size:12.5px;color:var(--mut);margin-top:8px}
+.tag{display:inline-block;border-radius:4px;padding:0 6px;font-size:12px;color:#fff}
+.t0{background:var(--c0)}.t1{background:var(--c1)}
+.sample{border-bottom:1px solid var(--line);padding:8px 0;font-size:13px}
+.sample small{color:var(--mut)}
+.scroll{overflow-x:auto}
+@media (max-width:600px){main{padding:12px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>EDA — detecção de fraude em notícias</h1>
+  <nav><a href="#visao">Visão geral</a><a href="#portais">Portais</a><a href="#tamanho">Tamanho</a><a href="#dups">Quase-duplicatas</a><a href="#termos">Termos</a><a href="#amostras">Textos</a></nav>
+  <label style="font-size:13px;color:var(--mut)">Split:
+    <select id="split"><option value="all">todos</option><option>train</option><option>dev</option><option>test</option></select>
+  </label>
+</header>
+<main>
+<section id="visao">
+  <h2>Visão geral</h2>
+  <p class="sub">Dados atuais de <code>bertimbau_2/</code> (teste sem quase-duplicatas ≥ 0,9; rodapé do ICL limpo). O filtro de split vale para portais, tamanho e textos.</p>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card"><h3>Fraudes por split (% das linhas)</h3><div class="chart"><canvas id="cSplit"></canvas></div>
+      <div class="note">A proporção é praticamente a mesma nos três splits (estratificação).</div></div>
+    <div class="card"><h3>Evolução dos dados por etapa</h3><div class="scroll"><table id="tEtapas"></table></div>
+      <div class="note">Registro em <code>ANALISE_EXPLORATORIA.md</code>, seções 11–12.</div></div>
+  </div>
+</section>
+
+<section id="portais">
+  <h2>Portais × classe</h2>
+  <p class="sub">Experimento de viés (E3): treino só no ndmais (maioria das linhas e dos positivos), teste nos demais portais. O iclnoticias (100% fraude, sem negativos) não treina; entra na exposição com teto por portal.</p>
+  <div class="grid">
+    <div class="card"><h3>Linhas vs. positivos: ndmais × outros (%)</h3><div class="chart"><canvas id="cDom"></canvas></div>
+      <div class="note" id="domNote"></div></div>
+    <div class="card"><h3>Taxa de fraude por portal (%)</h3><div class="chart" style="height:400px"><canvas id="cPct"></canvas></div>
+      <div class="note">Apenas portais com ≥ 5 linhas no split escolhido.</div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Todos os portais <small style="color:var(--mut)">(clique no cabeçalho para ordenar)</small></h3>
+    <div class="scroll"><table id="tPortais"></table></div></div>
+</section>
+
+<section id="tamanho">
+  <h2>Tamanho dos textos e truncamento</h2>
+  <p class="sub">O BERTimbau lê no máximo 512 tokens; o que passa disso é cortado.</p>
+  <div class="grid">
+    <div class="card"><h3>Distribuição do comprimento (caracteres, escala log)</h3><div class="chart"><canvas id="cChars"></canvas></div><div class="note" id="charsNote"></div></div>
+    <div class="card"><h3>Distribuição de tokens (% por faixa)</h3><div class="chart"><canvas id="cTok"></canvas></div><div class="note" id="tokNote"></div></div>
+  </div>
+</section>
+
+<section id="dups">
+  <h2>Quase-duplicatas (TF-IDF, cosseno)</h2>
+  <p class="sub">Similaridade do vizinho mais próximo no treino (dev) e em treino+dev (teste). Dados de <code>saida_checagem/</code>, gerados com o teste <b>antes</b> do filtro de 79 linhas.</p>
+  <div class="grid">
+    <div class="card"><h3>Histograma da similaridade (≥ 0,70)</h3><div class="chart"><canvas id="cSim"></canvas></div></div>
+    <div class="card"><h3>Pares acima do limiar</h3><div class="scroll"><table id="tSim"></table></div></div>
+  </div>
+</section>
+
+<section id="termos">
+  <h2>Termos que podem denunciar a fonte</h2>
+  <p class="sub">Em quantos textos cada termo aparece e que fração deles é fraude (prevalência geral ≈ 1,5%).</p>
+  <div class="card"><div class="scroll"><table id="tTermos"></table></div></div>
+</section>
+
+<section id="amostras">
+  <h2>Explorador de textos</h2>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <select id="fPortal"><option value="">todos os portais</option></select>
+      <select id="fLabel"><option value="">as duas classes</option><option value="1">fraude</option><option value="0">normal</option></select>
+      <input id="fQ" placeholder="buscar no texto" style="flex:1 1 200px">
+      <button id="bPrev">←</button><button id="bNext">→</button><span id="pInfo" style="align-self:center;color:var(--mut);font-size:13px"></span>
+    </div>
+    <div id="lista"></div>
+  </div>
+</section>
+</main>
+
+<script src="/static/chart.umd.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => n.toLocaleString('pt-BR');
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let charts = {}, portais = [], page = 0;
+
+function theme(){
+  Chart.defaults.color = css('--mut'); Chart.defaults.borderColor = css('--line');
+  Chart.defaults.font.family = 'system-ui,sans-serif';
+}
+function draw(id, cfg){ if(charts[id]) charts[id].destroy(); charts[id] = new Chart($('#'+id), cfg); }
+const api = (p, params={}) => fetch('/api/'+p+'?'+new URLSearchParams(params)).then(r=>r.json());
+const split = () => $('#split').value;
+const opts = (extra={}) => Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}, extra);
+
+async function visao(){
+  const o = await api('overview'); const t = o.splits.find(s=>s.split==='total');
+  $('#kpis').innerHTML = [
+    [fmt(t.n),'linhas no total'],[fmt(t.pos),'positivos (fraude)'],[t.pct.toFixed(2)+'%','prevalência'],[t.portais,'portais distintos'],
+    [o.dominantes.pos_pct+'%','dos positivos no ndmais (portal de treino do E3)'],
+  ].map(([b,s])=>`<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join('');
+  const sp = o.splits.filter(s=>s.split!=='total');
+  draw('cSplit',{type:'bar',data:{labels:sp.map(s=>`${s.split} (${fmt(s.n)}; ${s.pos} pos.)`),datasets:[{label:'% fraude',data:sp.map(s=>s.pct),backgroundColor:css('--c1')}]},
+    options:opts({plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'% fraude'}}}})});
+  $('#tEtapas').innerHTML = '<tr><th>Etapa</th><th>train</th><th>dev</th><th>test</th><th>total</th><th>pos.</th></tr>' +
+    o.etapas.map(e=>`<tr><td>${e.etapa}</td><td>${fmt(e.train)}</td><td>${fmt(e.dev)}</td><td>${fmt(e.test)}</td><td>${fmt(e.train+e.dev+e.test)}</td><td>${e.pos}</td></tr>`).join('');
+  window.dom = o.dominantes;
+}
+
+async function portaisView(){
+  portais = await api('portals',{split:split()});
+  const DOM = ['ndmais.com.br'];
+  const tn = portais.reduce((a,p)=>a+p.n,0), tp = portais.reduce((a,p)=>a+p.pos,0);
+  const val = (k,f)=>portais.filter(p=>DOM.includes(p.portal)&&p.portal===k).reduce((a,p)=>a+f(p),0);
+  const nd = portais.find(p=>p.portal===DOM[0]) || {n:0,pos:0};
+  const ndL = 100*nd.n/tn, ndP = 100*nd.pos/Math.max(tp,1);
+  draw('cDom',{type:'bar',data:{labels:['% das linhas','% dos positivos'],datasets:[
+    {label:'ndmais (treino)',data:[ndL,ndP],backgroundColor:css('--c0')},
+    {label:'outros portais (pool de teste, inclui iclnoticias)',data:[100-ndL,100-ndP],backgroundColor:css('--c1')}]},
+    options:opts({indexAxis:'y',scales:{x:{stacked:true,max:100,title:{display:true,text:'%'}},y:{stacked:true}},
+      plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.x.toFixed(1)}%`}}}})});
+  const pool = portais.filter(p=>p.portal!==DOM[0]);
+  $('#domNote').textContent = `Pool de teste (todos exceto ndmais): ${fmt(pool.reduce((a,p)=>a+p.n,0))} linhas e ${pool.reduce((a,p)=>a+p.pos,0)} positivos. O iclnoticias (100% fraude, sem negativos) entra só na exposição, com teto, nunca no treino.`;
+  const top = portais.filter(p=>p.n>=5).sort((a,b)=>b.pct-a.pct).slice(0,18);
+  draw('cPct',{type:'bar',data:{labels:top.map(p=>p.portal.replace('www.','')),datasets:[{label:'% fraude',data:top.map(p=>p.pct),backgroundColor:top.map(p=>p.pct>=50?css('--c1'):css('--c0'))}]},
+    options:opts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.x}% (${top[c.dataIndex].pos}/${top[c.dataIndex].n})`}}},scales:{x:{max:100,title:{display:true,text:'% fraude'}},y:{ticks:{autoSkip:false,font:{size:11}}}}})});
+  tabelaPortais('n',-1);
+  const sel = $('#fPortal'), cur = sel.value;
+  sel.innerHTML = '<option value="">todos os portais</option>'+portais.map(p=>`<option>${p.portal}</option>`).join(''); sel.value = cur;
+}
+function tabelaPortais(k,dir){
+  const cols=[['portal','Portal'],['n','Linhas'],['pos','Positivos'],['neg','Negativos'],['pct','% fraude'],['pos_share','% dos positivos']];
+  const rows=[...portais].sort((a,b)=>(a[k]>b[k]?1:-1)*dir);
+  $('#tPortais').innerHTML='<tr>'+cols.map(([c,n])=>`<th data-k="${c}">${n}</th>`).join('')+'</tr>'+
+    rows.map(p=>`<tr><td>${p.portal}</td><td>${fmt(p.n)}</td><td>${p.pos}</td><td>${fmt(p.neg)}</td><td>${p.pct}</td><td>${p.pos_share}</td></tr>`).join('');
+  document.querySelectorAll('#tPortais th').forEach(th=>th.onclick=()=>tabelaPortais(th.dataset.k,(k===th.dataset.k?-dir:-1)));
+}
+
+async function tamanho(){
+  const c = await api('lengths',{split:split()});
+  draw('cChars',{type:'line',data:{labels:c.bins.map(fmt),datasets:[
+    {label:'normal',data:c.normal,borderColor:css('--c0'),backgroundColor:css('--c0'),pointRadius:0,tension:.3},
+    {label:'fraude',data:c.fraude,borderColor:css('--c1'),backgroundColor:css('--c1'),pointRadius:0,tension:.3}]},
+    options:opts({scales:{x:{title:{display:true,text:'caracteres (início da faixa)'},ticks:{maxTicksLimit:10}},y:{title:{display:true,text:'% dos textos da classe'}}}})});
+  $('#charsNote').textContent = `Mediana: normal ${fmt(c.stats.normal.mediana)} · fraude ${fmt(c.stats.fraude.mediana)} caracteres.`;
+  const t = await api('tokens',{split:split()});
+  const linha512 = {id:'l512',afterDraw(ch){const x=ch.scales.x, i=t.bins.indexOf('512'); if(i<0)return; const px=x.getPixelForValue(i);
+    const c=ch.ctx; c.save(); c.strokeStyle=css('--ink'); c.setLineDash([5,4]); c.beginPath(); c.moveTo(px,ch.chartArea.top); c.lineTo(px,ch.chartArea.bottom); c.stroke();
+    c.fillStyle=css('--ink'); c.fillText('512',px+4,ch.chartArea.top+12); c.restore();}};
+  draw('cTok',{type:'bar',data:{labels:t.bins,datasets:[
+    {label:'normal',data:t.normal,backgroundColor:css('--c0')},{label:'fraude',data:t.fraude,backgroundColor:css('--c1')}]},
+    options:opts({scales:{x:{title:{display:true,text:'tokens (início da faixa)'}},y:{title:{display:true,text:'% dos textos da classe'}}}}),plugins:[linha512]});
+  $('#tokNote').textContent = `Cortados em 512 tokens: normal ${t.stats.normal.pct_truncado}% · fraude ${t.stats.fraude.pct_truncado}%` + (t.estimado?' (estimativa 4 chars/token).':'.');
+}
+
+async function dups(){
+  const s = await api('similarity');
+  draw('cSim',{type:'bar',data:{labels:s.bins,datasets:Object.entries(s.split).map(([k,v],i)=>({label:k+' → '+(k==='dev'?'treino':'treino+dev'),data:v,backgroundColor:i?css('--c1'):css('--c0')}))},
+    options:opts({scales:{x:{title:{display:true,text:'similaridade (início da faixa)'}},y:{type:'logarithmic',title:{display:true,text:'nº de linhas (escala log)'}}}})});
+  $('#tSim').innerHTML='<tr><th>Consulta</th><th>Limiar</th><th>Pares</th><th>Positivos</th></tr>'+s.resumo.map(r=>`<tr><td>${r.consulta}</td><td>≥ ${r.limiar}</td><td>${r.pares}</td><td>${r.positivos}</td></tr>`).join('');
+}
+async function termos(){
+  const r = await api('terms');
+  $('#tTermos').innerHTML='<tr><th>Termo</th><th>Textos com o termo</th><th>Fraudes</th><th>% fraude</th></tr>'+r.map(x=>`<tr><td>${x.termo}</td><td>${fmt(x.docs)}</td><td>${x.pos}</td><td>${x.pct_pos}</td></tr>`).join('');
+}
+async function amostras(){
+  const r = await api('samples',{split:split()==='all'?'':split(),portal:$('#fPortal').value,label:$('#fLabel').value,q:$('#fQ').value,page});
+  $('#pInfo').textContent = `${fmt(r.total)} textos · página ${r.page+1}`;
+  $('#lista').innerHTML = r.rows.map(x=>`<div class="sample"><span class="tag t${x.label}">${x.label?'fraude':'normal'}</span> <small>${x.split} · ${x.portal} · ${fmt(x.chars)} chars · <a href="${x.url}" target="_blank" rel="noopener" style="color:inherit">link</a></small><br>${x.texto.replace(/</g,'&lt;')}…</div>`).join('') || '<p class="note">Nada encontrado.</p>';
+  $('#bNext').disabled = (page+1)*25 >= r.total; $('#bPrev').disabled = page===0;
+}
+function filtros(){ page=0; amostras(); }
+$('#split').onchange = ()=>{portaisView();tamanho();filtros();};
+['fPortal','fLabel'].forEach(i=>$('#'+i).onchange=filtros);
+let tq; $('#fQ').oninput=()=>{clearTimeout(tq);tq=setTimeout(filtros,300)};
+$('#bNext').onclick=()=>{page++;amostras()}; $('#bPrev').onclick=()=>{page--;amostras()};
+theme(); matchMedia('(prefers-color-scheme:dark)').onchange=()=>{theme();location.reload()};
+visao().then(portaisView); tamanho(); dups(); termos(); amostras();
+</script>
+</body>
+</html>
