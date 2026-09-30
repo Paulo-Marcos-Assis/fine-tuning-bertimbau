@@ -1,0 +1,8 @@
+split,label,portal,url
+train,0,bsky.app,https://bsky.app/profile/gazetadopovo.com.br
+train,0,assinaturas.gazetadopovo.com.br,https://assinaturas.gazetadopovo.com.br/por-que-assinar/
+train,0,assinaturas.gazetadopovo.com.br,https://assinaturas.gazetadopovo.com.br/
+train,0,conta.gazetadopovo.com.br,https://conta.gazetadopovo.com.br/minha-conta/meus-dados
+test,0,www.assinecarta.com.br,https://www.assinecarta.com.br/?utm_source=cartacapital.com.br&utm_medium=footer&utm_content=
+test,1,pc.sc.gov.br,https://pc.sc.gov.br/?p=18630
+test,1,pc.sc.gov.br,https://pc.sc.gov.br/?p=5310

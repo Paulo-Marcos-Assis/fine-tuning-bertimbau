@@ -1,2 +1,6 @@
 .ipynb_checkpoints/
 *.tar.gz
+resultados_bertimbau/
+*.safetensors
+*.bin
+wandb/
