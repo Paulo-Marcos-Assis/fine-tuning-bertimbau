@@ -90,3 +90,10 @@ cols: ['url','processed_text','label','portal'] em todos
 dtypes: label int64, resto StringDtype
 nulos: 0 | dup_url: 0 | dup_rows: 0 | dup_text_norm: 0
 ```
+
+## 7. Filtro de quase-duplicatas no teste (aplicado)
+
+* Critério: similaridade de cosseno TF-IDF (`checagem_leakage.py`) ≥ **0,9** entre a linha do teste e seu vizinho mais próximo em train+dev.
+* Removidas **79** linhas de `test_bert.csv` (0,7%), das quais 1 positiva: **11453 → 11374** (11277→11199 negativos, 176→175 positivos). Train e dev não foram alterados. Novo md5 do teste: `86029ea0...`.
+* Script: `bertimbau_2/filtra_quase_duplicatas.py` (lê `saida_checagem/quase_duplicatas_test.csv`, gerado antes do filtro). Os números das seções 1–6 referem-se ao teste original.
+* Limitação: pares com similaridade entre 0,8 e 0,9 (161 no teste) permanecem; o corte de 0,9 é arbitrário.

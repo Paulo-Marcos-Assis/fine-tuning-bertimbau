@@ -90,3 +90,36 @@ Para texto da pesquisa: escrever "sem duplicatas exatas (exata/normalizada 0)" e
 * Split 64/16/20 preservado após dedup (80/20 train/dev).
 * **Sem duplicatas exatas** após dedup; pronto para `DatasetDict(train=36650, validation=9162)` + holdout `test=11453`, mas avaliar riscos de quase-duplicatas, portal e truncamento.
 * Imbalance ~1.535% exige `WeightedLoss (64.2)` e `F1` já configurados. Checagens completas em `saida_checagem/` e `checagem_leakage.py`.
+
+## 11. Evolução dos dados por etapa (registro cumulativo)
+
+As seções 1–10 descrevem a etapa 2. Cada etapa abaixo parte da anterior; nenhuma substitui o registro anterior.
+
+| Etapa | Critério | train | dev | test | total |
+|---|---|---|---|---|---|
+| 1. Bruto | — | 36652 | 9163 | 11454 | 57269 |
+| 2. Dedup exato/normalizado | `md5(norm(processed_text))`, train→dev→test (-4 linhas, todas `label 0`) | 36650 | 9162 | 11453 | 57265 |
+| 3. Filtro de quase-duplicatas | sim. cosseno TF-IDF ≥ 0.9 com vizinho em train+dev; só no teste (-79) | 36650 | 9162 | **11374** | **57186** |
+
+**Proporção entre splits (train / dev / test):**
+
+| Etapa | % train | % dev | % test |
+|---|---|---|---|
+| 1. Bruto | 64.00 | 16.00 | 20.00 |
+| 2. Dedup exato | 64.00 | 16.00 | 20.00 |
+| 3. Filtro ≥ 0.9 | 64.09 | 16.02 | 19.89 |
+
+**Proporção de fraude (label 1) por split:**
+
+| Etapa | train | dev | test | total |
+|---|---|---|---|---|
+| 1. Bruto | 562 / 36652 = 1.533% | 141 / 9163 = 1.539% | 176 / 11454 = 1.537% | 879 / 57269 = 1.535% |
+| 2. Dedup exato | 562 / 36650 = 1.533% | 141 / 9162 = 1.539% | 176 / 11453 = 1.537% | 879 / 57265 = 1.535% |
+| 3. Filtro ≥ 0.9 | 562 / 36650 = 1.533% | 141 / 9162 = 1.539% | 175 / 11374 = 1.539% | 878 / 57186 = 1.535% |
+
+Na etapa 3 saíram 79 linhas do teste (78 normais, 1 fraude): a estratificação foi preservada e o peso da classe (64.2, calculado do treino) não muda. md5 do teste na etapa 3: `86029ea0...` (detalhes em `AUDITORIA_DATALEAKAGE.md`, seção 7).
+
+**Teste na etapa 3 (chars):** | Set | min | q25 | mediana | média | q75 | max |
+| test | 71 | 1017 | 1650 | 2100 | 2616 | 40795 |
+
+Truncamento >512 tokens no teste: normal 33.0% (mediana 380 tokens), fraude 74.3% (mediana 712).
