@@ -14,9 +14,17 @@
 
 Referência atual: `neuralmind/bert-base-portuguese-cased` (BERTimbau base).
 
-## 2. Por que vale testar (objetivo, sem aprofundar)
-- Modelos mais recentes para português podem superar o BERTimbau na mesma tarefa.
-- Os baseados em ModernBERT costumam aceitar contexto mais longo que 512 tokens (**confirmar por modelo**). Isso interessa porque ~74% dos textos de fraude passam de 512 tokens (`saida_checagem/truncamento_por_classe.csv`).
+## 2. Por que vale testar e justificativa empírica
+
+1. **Evolução arquitetural:** Modelos mais recentes treinados especificamente para português (como os baseados em ModernBERT) incorporam avanços arquiteturais (Rotary Embeddings, FlashAttention, vocabulários expandidos) que podem superar o BERTimbau base na mesma tarefa.
+2. **Justificativa empírica de Contexto Longo (Medições da PARTE 3.1 no treino):**
+   A execução da PARTE 3.1 no notebook `bertimbau_tuning.ipynb` comprovou uma assimetria severa de comprimento entre as classes:
+   - **Notícias normais ($n=36.088$):** mediana = 382 tokens, q75 = 605 tokens, **33,2%** sofrem truncamento em 512 tokens.
+   - **Notícias de fraude ($n=562$):** mediana = **738 tokens**, q75 = **1.086 tokens**, **70,6%** sofrem truncamento em 512 tokens.
+
+   **Impacto prático e metodológico:**
+   - Mais de 7 em cada 10 notícias de fraude têm o texto cortado em 512 tokens no BERTimbau, gerando um "ponto cego" para trechos frequentemente situados no final de reportagens investigativas (despachos judiciais, conclusões de inquérito policial e pareceres de órgãos de controle).
+   - Como o 3º quartil (q75) das fraudes é de 1.086 tokens, arquiteturas que aceitam janelas de contexto estendidas (ex.: 1.024, 2.048 ou 4.096 tokens) cobrirão a quase totalidade dos textos de fraude sem nenhuma perda de sinal informativo.
 
 ## 3. Tasks
 

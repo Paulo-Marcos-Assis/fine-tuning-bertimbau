@@ -190,7 +190,7 @@ Cada task termina com critérios de aceite. Marcar como feito neste arquivo (se�
 - O F1 perfeito do NDMAIS_BIAS in-domain (1,0) e "viés BAIXO" da Task 8 **não devem ser citados como evidência** de ausência de viés; o que vale dali é o cross-portal e a lição do limiar.
 
 ## 8. Checklist de progresso
-- [x] T1 (células adicionadas ao notebook em 2026-09-30; falta executar no Jupyter) · [ ] T2 · [ ] T3 · [ ] T4 · [ ] T5 · [ ] T6 · [ ] T7 · [ ] T8 (opcional) · [ ] T9
+- [x] T1 (células adicionadas ao notebook em 2026-09-30; falta executar no Jupyter) · [ ] T2 · [ ] T3 · [ ] T4 · [x] T5 (concluída em 2026-10-01) · [ ] T6 · [x] T7/T7b (concluída em 2026-10-01: Baseline TF-IDF+SVM treinado nas 3 configs, vencedor selecionado no dev e avaliado na exposição; relatório e predições gerados) · [ ] T8 (opcional) · [ ] T9
 
 ## 8b. Tarefa futura: comparar outros modelos no fine-tuning
 NorBERTo, ModBERTBr, BERTugues e multilingual-e5-large contra o BERTimbau: ver `PLANO_COMPARACAO_MODELOS.md` (não iniciada).
