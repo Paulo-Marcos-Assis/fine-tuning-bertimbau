@@ -7,7 +7,7 @@
 | Modelo | Tipo | Fonte | Observação |
 |---|---|---|---|
 | **NorBERTo** | ModernBERT treinado para português (corpus de 331 bi de tokens) | Silva et al. 2026, PROPOR 2026, vol. 1, p. 183–193 | id no Hugging Face: a confirmar |
-| **ModBERTBr** | ModernBERT para português brasileiro | Wu & Garcia, ENIAC 2025, p. 2044–2055, DOI 10.5753/eniac.2025.14516 | id no Hugging Face: a confirmar |
+| **ModBERTBr** | ModernBERT para português brasileiro | Wu & Garcia, ENIAC 2025, p. 2044–2055, DOI 10.5753/eniac.2025.14516 | id confirmado: `wallacelw/ModBERTBr`, licença apache-2.0, 0.1B params, safetensors, tokenizer Unigram **sem** `token_type_ids`, janela 8192 |
 | **BERTugues** | BERT pré-treinado para português brasileiro | Mazza Zago & Agnoletti dos Santos Pedotti, 2024, Semina: Ciências Exatas e Tecnológicas 45, e50630, DOI 10.5433/1679-0375.2024.v45.50630 | id no Hugging Face: a confirmar |
 | **multilingual-e5-large** | modelo de embeddings multilíngue | https://huggingface.co/intfloat/multilingual-e5-large | usado via `sentence-transformers` ou `transformers`; conferir na model card o formato de entrada (prefixos) e o tamanho máximo |
 | `sentence-transformers` | biblioteca (não é um modelo) | https://sbert.net/ (`pip install -U sentence-transformers`) | ferramenta para carregar/usar o e5 |
@@ -32,6 +32,8 @@ Referência atual: `neuralmind/bert-base-portuguese-cased` (BERTimbau base).
 |---|---|---|
 | F1 | Para cada candidato: confirmar o id no Hugging Face, licença, tamanho, contexto máximo e tokenizador | tabela preenchida na seção 1 |
 | F2 | Parametrizar o notebook principal pelo nome do modelo (`AutoTokenizer`/`AutoModelForSequenceClassification`, `max_length`, prefixos se o modelo exigir) sem mudar o restante | o BERTimbau reproduz o resultado atual |
+| F2a (ModBERTBr, pronto em 2026-10-08) | `modbertbr/modbertbr_tuning.ipynb` (pasta própria; lê CSVs de `bertimbau_2/`, grava checkpoints/predições na própria pasta): `max_length=4096` (medido: Unigram gera ~20% mais tokens; cobertura das fraudes a 512→15-19%, 2048→90-95%, **4096→99-100%**), batch 2 x accum 8, sem E3/portal | aguardando GPU |
+| F2b (e5 probe, pronto em 2026-10-08) | `e5/e5_probe.py`: `intfloat/multilingual-e5-large` (0.6B, MIT, limite 512, prefixo `query: ` obrigatório) via `sentence-transformers`, embeddings congelados 1024-dim + `GridSearchCV` LinearSVC (mesma grade da T7c), full splits, só métricas básicas a corte 0.0, sem E3/portal | aguardando GPU |
 | F3 | Treinar cada candidato no **mesmo protocolo** (mesmos splits, seed 42, loss ponderada, seleção pelo dev, avaliação única no teste) e salvar predições no formato da T1 do plano de viés | tabela modelo × {AP, F1 no limiar do dev, recall, IC} |
 | F4 | Nos modelos com contexto longo, repetir com `max_length` maior (ex.: 1024 ou 2048) e comparar com 512 | efeito do truncamento medido |
 | F5 | Repetir o teste de viés de domínio (E3) só para o melhor candidato, se o usuário quiser | resultado registrado no plano de viés |
